@@ -50,7 +50,7 @@
 
 # 1. An option list for the command line is created and populated with all file objects to be run
 #     through the main function (have variables populated). These include the position file, 
-#     all shapefiles, and rasters.
+#     all shapefiles, and rasters *** you will need to contact me for the raster files, too big to upload
 #       a. You should have all the shapefiles and rasters stored in respective folders in your 
 #           working directory. 
 # 2. Change line #104 opt$species = to the type of file you are using (FastGPS, Sightings, Effort, SSM, pick)
