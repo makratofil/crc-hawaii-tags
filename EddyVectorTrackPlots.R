@@ -48,10 +48,10 @@ require("rerddapXtracto")
 require("ggplot2")
 
 # read in douglas filtered batch tag file and subset out tag of interest 
-df <- read.csv('Douglas Filtered/GgTag013_DouglasFiltered_KS_r20d3lc2_2020APRv1.csv')
+df <- read.csv('Douglas Filtered/OoTag043-046_DouglasFiltered_KS_r20d3lc2_2020MAYv1.csv')
 
 # subset tag
-tag <- filter(df, animal == "GgTag013")
+tag <- filter(df, animal == "OoTag045")
 
 # review data
 str(tag)
@@ -67,14 +67,14 @@ tag$Date <- date(tag$date)
 #noland <- gm225[c(1:39, 42:84, 86:450, 453:478, 481:495, 497, 500:645, 648:703),]                                                                                       ###
 
 # specify range of dates of tag deployment to extract data for
-dates <- seq(ymd('2015-04-21'),ymd('2015-05-05'),by='1 day')
+dates <- seq(ymd('2013-11-02'),ymd('2013-11-26'),by='1 day')
 
 ## Empty list to hold suv for each day
 allData <- list()
 
 ## Constants
-xpos <- c(-158, -156) # longitudinal boundaries of plot
-ypos <- c(19, 21) # latitudinal boundaries of plot
+xpos <- c(-173.8, -155.6) # longitudinal boundaries of plot
+ypos <- c(14.5, 21.5) # latitudinal boundaries of plot
 zpos <- c(0., 0.) # depth or altitude boudary for current vector dataset (not needed for SSH dataset)
 
 # make objects for SSH and current vector data
@@ -110,7 +110,7 @@ for (i in 1:length(dates)){
   ## Set up s
   s <- as.data.frame(ssh3D$ssh)
   ## Need the variable names paired w/ lat
-  ## Don't set names to lat, gets fucked
+  ## Don't set names to lat, gets screwed
   ref <- data.frame(var = names(s),
                     lat = ssh3D$latitude)
   #names(s) <- ssh3D$latitude
@@ -178,8 +178,8 @@ ylim = c(min(suv$lat), max(suv$lat))
 range(suv$ssh)
 
 # subset tag date and data to highlight
-sub <- filter(tag, Date == as.Date("2015-05-05"))
-day <- filter(suv, date == as.Date("2015-05-05"))
+sub <- filter(tag, Date == as.Date("2013-11-26"))
+day <- filter(suv, date == as.Date("2013-11-26"))
 
 ## plot ##
 
@@ -193,7 +193,7 @@ coastr <- sf::st_transform(coast, crs = 4326)
     geom_vector(data = day, aes(x = lon, y = lat, dx = easting, dy = northing), skip.x = 2,
                 skip.y = 1, preserve.dir = TRUE, colour = 'white', size = 0.5,
                 show.legend = T) +
-    scale_mag("Velocity (m/s)", max = 1.5) +
+    scale_mag("Velocity (m/s)", max = 2) +
     geom_path(data = tag, aes(x = longitud, y = latitude), size = .75, alpha = 1, color = "grey60") +
     geom_point(data = tag, aes(x = longitud, y = latitude), color = 'grey55', fill = "grey60",
                shape = 21) +
@@ -202,22 +202,22 @@ coastr <- sf::st_transform(coast, crs = 4326)
                shape = 21) +
     geom_sf(data = coastr, fill = 'grey80', colour = 'grey28', size = 1.25) +
     coord_sf(xlim = xlim, ylim = ylim, expand = c(0,0)) +
-    annotate("rect", xmin = -156.4, xmax = -156.05, ymin = 19.05, ymax = 19.25, alpha = 0.4,
+    annotate("rect", xmin = -157.7, xmax = -155.7, ymin = 14.7, ymax = 15.7, alpha = 0.5,
              fill = 'white') +
-    annotate("text", x = -156.22, y = 19.15, label = str_wrap("GgTag013: 05 May 2015", 11)) +
+    annotate("text", x = -157, y = 15.2, label = str_wrap("OoTag045: 26 Nov 2013", 11)) +
     theme_bw(base_size = 12) +
     ylab("Latitude") +
     xlab("Longitude") +
     labs(x = NULL, y = NULL,
          fill = "SSH (m)") +
     scale_fill_gradientn(colours = cmocean('balance')(10), na.value = 'grey', # cmocean balance palette
-                         limits = c(0.4, 1)) + 
+                         limits = c(0.309, .95)) + 
     theme(axis.text = element_text(color = 'black'),
           rect = element_rect(size = 2),
           legend.key = element_rect(fill = 'grey')) 
 )
 
-ggsave("Eddy vector plots and animations/GgTag013/GgTag013_EddyVectorPlot_2015May05.jpg", dpi = 300)
+ggsave("Eddy vector plots and animations/OoTag045/OoTag045_EddyVectorPlot_2013Nov26.jpg", dpi = 300)
 
 ### Create animation of plots, and write video or GIF file ###
 library(magick)
@@ -245,7 +245,9 @@ images <- lapply(files, read.image)
 # group and scale images for full deployment
 all <- image_scale(c(images[[1]], images[[2]], images[[3]], images[[4]], images[[5]], images[[6]],
                      images[[7]], images[[8]], images[[9]], images[[10]], images[[11]], images[[12]],
-                     images[[13]], images[[14]], images[[15]]))
+                     images[[13]], images[[14]], images[[15]], images[[16]], images[[17]], images[[18]],
+                     images[[19]], images[[20]], images[[21]], images[[22]], images[[23]], images[[24]],
+                     images[[25]]))
 
 # write gif file 
 image_write_gif(all, paste0(folder, TagID, "/", TagID, "_EddyVectorAnimation_FullDply.gif"),
