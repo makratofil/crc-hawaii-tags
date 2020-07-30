@@ -1,3 +1,19 @@
+## Dive pseudotracks: use position data to assign locations to 
+## behavior (dive) data and populate with geospatial variables.
+
+## Originally authored by Dave Anderson, Cascadia Research
+## Edited, commented by Michaela A. Kratofil
+
+## Most recent edits: 30 JUL 2020
+
+###################################################################################
+
+## WARNING: With recent changes in r-spatial group of packages, check crs() and 
+## projection() of every shapefile, raster, and projected object. Like other scripts,
+## I have done what I can to bug check this script but does not mean that it is 
+## completely bug free. 
+
+## load packages
 library(R.utils)
 library(geosphere)
 library(lubridate)
@@ -7,22 +23,21 @@ library(raster)
 library(rgdal)
 library(rgeos)
 library(ncdf4)
+library(sf)
 
+# select animal/tag
 Animal = "PcTag055"
+TagFile = "PcTag055GPSargosGIS20190930.csv" # file to read in
 
-#TagFile = "PeTag001-028GIS20190407.csv"
-#TagFile = "SbTag001-022GIS20181019.csv"
-#TagFile = "GmHIallArgosGPSGIS.csv"
-#TagFile = "PcAllGPSArgosGIS20190822.csv"
-TagFile = "PcTag055GPSargosGIS20190930.csv"
-#TagFile = "SaTag001-009GIS20181019.csv"
-
+## HST tags or tags that were programmed in HST, so will have behavior data in HST
 HSTtags = c("SbTag006", "SbTag007", "SbTag008", "SbTag010", "SbTag011", "SbTag015", "PcTag035", "PcTag037")
 if(Animal %in% HSTtags) {
   TZ = "Pacific/Honolulu"
 } else {
   TZ = "UTC"
 }
+
+## global options
 BehaviorFile = paste0(Animal, "-Behavior.csv")
 opt = c()
 opt$shorefile = "FisheriesIslands"
@@ -50,17 +65,23 @@ opt$slopeL = "Gebco_Slope.nc"
 opt$slopeM = "FalkorSlopeUTM4N.nc"
 opt$slopeH = "MultibeamSlopeUTM4N.nc"
 
+## read in position file
 position = read.csv(paste0("GISoutput/", TagFile), header=T, colClass=c("animal"="character", "ptt"="character", 
 						      "date"="character", "time"="character", "latitude"="numeric",
 						      "longitud"="numeric"))
-position = within(position, DateTime <- as.POSIXct(datetimeUTC, tz = "UTC"))
-#position = within(position, DateTime <- as.POSIXct(paste(date, time), format = "%Y-%m-%d %H:%M:%S", tz = "UTC"))
 
-position = subset (position, animal == Animal)
+## format datetime
+position = within(position, DateTime <- as.POSIXct(datetimeUTC, tz = "UTC"))
+# position = within(position, DateTime <- as.POSIXct(paste(date, time), format = "%Y-%m-%d %H:%M:%S", tz = "UTC"))
+
+position = subset (position, animal == Animal) # subset
+
+## read in behavior file
 behavior = read.csv(paste0("Dive_behavior_files/Raw/", BehaviorFile), header=T, stringsAsFactors = F)  
 behavior = behavior[behavior$What != "Message", ]
 
-#behavior = subset(behavior, select = -c(Number.1, Shape.1, DepthMin.1, DepthMax.1, DurationMin.1, DurationMax.1,
+## format and add columns to be populated 
+# behavior = subset(behavior, select = -c(Number.1, Shape.1, DepthMin.1, DepthMax.1, DurationMin.1, DurationMax.1,
 #                                        Number.2, Shape.2, DepthMin.2, DepthMax.2, DurationMin.2, DurationMax.2))
 behavior$Start = as.POSIXct(gsub("\\.5", "", behavior$Start), tz=TZ, format="%H:%M:%S %d-%b-%Y")
 behavior$End = as.POSIXct(gsub("\\.5", "", behavior$End), tz=TZ, format="%H:%M:%S %d-%b-%Y")
@@ -96,26 +117,57 @@ behavior$isDawn = as.logical(NA)
 behavior$isDusk = as.logical(NA)
 behavior$isDay = as.logical(NA)
 
-mfa = read.csv("mfablocks.csv", stringsAsFactors = F, colClass = c("start"="numeric", "stop"="numeric", "datetimeStart"="POSIXct", "datetimeStop"="POSIXct"))
-mfa$datetimeStart = force_tz(mfa$datetimeStart, tz = "UTC")
-mfa$datetimeStop = force_tz(mfa$datetimeStop, tz = "UTC")
-mfablocks = interval(mfa$datetimeStart, mfa$datetimeStop)
+## for MFAS studies 
+# mfa = read.csv("mfablocks.csv", stringsAsFactors = F, colClass = c("start"="numeric", "stop"="numeric", "datetimeStart"="POSIXct", "datetimeStop"="POSIXct"))
+# mfa$datetimeStart = force_tz(mfa$datetimeStart, tz = "UTC")
+# mfa$datetimeStop = force_tz(mfa$datetimeStop, tz = "UTC")
+# mfablocks = interval(mfa$datetimeStart, mfa$datetimeStop)
 
-#read in the various data files
-shore = readOGR(".", opt$shorefile, verbose=F)    # Hawaiian archepeligo shoreline shapefile
-d200m = readOGR(".", opt$d200m, verbose=F)        # 200 meter isobath shapefile
-depthL = raster(opt$depthL)
-depthM = raster(opt$depthM)
-depthH = raster(opt$depthH)
-aspectL = raster(opt$aspectL)
-aspectM = raster(opt$aspectM)
-aspectH = raster(opt$aspectH)
-slopeL = raster(opt$slopeL)
-slopeM = raster(opt$slopeM)
-slopeH = raster(opt$slopeH)
+## Import shapefiles and reproject using UTM 4N projection (GRS80 ellipsoid)
+## EPSG:3750 or "+proj=utm +zone=4 +ellps=GRS80 +units=m +no_defs", see WKT version at spatialreference.org
+## Will throw out warning sign for discarded datum
 
-# Work through 
-for (i in 1:(nrow(position)-1)) {         #Work our way through the position file
+# Shoreline shapefile, for distance to shore 
+shore <- readOGR("Shapefiles", opt$shorefile, verbose=F) %>%
+  as(., "sf")
+shore <- st_transform(shore, 3750) # need to transform the CRS as it does not read in correctly
+
+# Distance to 200m isobath file
+d200m <- readOGR("Shapefiles", opt$d200m, verbose=F) %>%
+  as(., 'sf')
+d200m <- st_transform(d200m, 3750)
+
+## Import raster files 
+
+# DepthL, 30 arc-sec GEBCO
+depthL <- raster(paste0("Rasters/", opt$depthL))
+
+# DepthM, 60m Multibeam Falkor
+depthM <- raster(paste0("Rasters/", opt$depthM))
+
+# DepthH, 50m HMRG Multibeam GEBCO
+depthH <- raster(paste0("Rasters/", opt$depthH))
+
+# Aspect, 30 arc-sec GEBCO
+aspectL <- raster(paste0("Rasters/", opt$aspectL))
+
+# Aspect, 60m Multibeam Falkor
+aspectM <- raster(paste0("Rasters/", opt$aspectM))
+
+# Aspect, 50m HMRG Multibeam GEBCO
+aspectH <- raster(paste0("Rasters/", opt$aspectH))
+
+# Slope, 30 arc-sec GEBCO
+slopeL <- raster(paste0("Rasters/", opt$slopeL))
+
+# Slope, 60m Multibeam Falkor
+slopeM <- raster(paste0("Rasters/", opt$slopeM))
+
+# Slope, 50m HMRG Multibeam GEBCO
+slopeH <- raster(paste0("Rasters/", opt$slopeH))
+
+## First for loop: work way through position file 
+for (i in 1:(nrow(position)-1)) {         
   TagID = position[i, "ptt"]
   StartDate = position[i, "DateTime"]
   StartLat = position[i, "latitude"]
@@ -133,20 +185,20 @@ for (i in 1:(nrow(position)-1)) {         #Work our way through the position fil
         
         
 	for (d in 1:nrow(behavior)) {
-	  cat("\r", i, " ", d, " a")      #output diagnostic count to the console
+	  cat("\r", i, " ", d, " a")      # output diagnostic count to the console
 	
 		DiveTagID = behavior[d, "Ptt"]
 		DiveStart = behavior[d, "Start"]
 		DiveEnd = behavior[d, "End"]
 
-		if (DiveStart < StartDate)      #The dive is not within this segment
+		if (DiveStart < StartDate)      # The dive is not within this segment
 			next
 
-		if (DiveStart > EndDate)        #The dive is in the next segment
+		if (DiveStart > EndDate)        # The dive is in the next segment
 			break
 
 		cat("\bb")
-		#The dive is within the segment
+		# The dive is within the segment
 		# so add the lat and lon to the record
 		Distance = as.numeric(as.duration(int_diff(c(StartDate, DiveStart)))) * Speed
 
@@ -159,44 +211,45 @@ for (i in 1:(nrow(position)-1)) {         #Work our way through the position fil
 		cat("\be")
 		lon = behavior[d, "longitud"]
 		lat = behavior[d, "latitude"]
-	  pos = SpatialPoints(cbind(lon, lat))
-	  proj4string(pos) = CRS("+init=EPSG:4326")
-		pos = spTransform(pos, CRS("+proj=utm +zone=4 +ellps=GRS80 +units=m +no_defs"))
-		dist = gDistance(pos, shore, byid=T)
+	  pos = st_point(c(lon,lat))
+	  sfc = st_sfc(pos)
+	  pos = st_sf(data.frame(geom=sfc), crs = "+init=EPSG:4326")
+	  pos = st_transform(pos, 3750)
+		dist = st_distance(pos, shore, by_element = T)
 		behavior[d, "DistToShore"] = min(dist)
-		behavior[d, "DistTo200m"] = gDistance(pos, d200m)
+		behavior[d, "DistTo200m"] = st_distance(pos, d200m)
 		cat("\bf")
-	  pos = spTransform(pos, CRS(proj4string(depthH)))
+		pos <- st_transform(pos, crs = projection(depthH)) # better to reproject pos to projection of depth raster here
 		cat("\bg")
-	  depth = raster::extract(depthH, pos, method="bilinear")
+	  depth = raster::extract(depthH, pos, method = "bilinear")
 	  if (!is.na(depth)) {
 		cat("\bh")
 	    behavior[d, "depth"] = depth
 	    behavior[d, "Source"] = "50m HMRG multibeam"
-	    behavior[d, "aspect"] = raster::extract(aspectH, pos, method="bilinear")
-	    behavior[d, "slope"] = raster::extract(slopeH, pos, method="bilinear")
+	    behavior[d, "aspect"] = raster::extract(aspectH, pos, method = "bilinear")
+	    behavior[d, "slope"] = raster::extract(slopeH, pos, method = "bilinear")
 	  }
 	  else {
 		cat("\bi")
-	    depth = raster::extract(depthM, pos, method="bilinear")
+	    depth = raster::extract(depthM, pos, method = "bilinear")
 		cat("\bj")
 	    if (!is.na(depth)) {
 		cat("\bk")
 	      behavior[d, "depth"] = depth
 	      behavior[d, "Source"] = "60m Falkor multibeam"
-	      behavior[d, "aspect"] = raster::extract(aspectM, pos, method="bilinear")
-	      behavior[d, "slope"] = raster::extract(slopeM, pos, method="bilinear")
+	      behavior[d, "aspect"] = raster::extract(aspectM, pos, method = "bilinear")
+	      behavior[d, "slope"] = raster::extract(slopeM, pos, method = "bilinear")
 	    }
 	    else {
 		cat("\bl")
-	      depth = raster::extract(depthL, pos, method="bilinear")
+	      depth = raster::extract(depthL, pos, method = "bilinear")
 		cat("\bm")
 	      if (!is.na(depth)) {
 		cat("\bn")
 	        behavior[d, "depth"] = depth
 	        behavior[d, "Source"] = "30 arc sec GEBCO"
-	        behavior[d, "aspect"] = raster::extract(aspectL, pos, method="bilinear")
-	        behavior[d, "slope"] = raster::extract(slopeL, pos, method="bilinear")
+	        behavior[d, "aspect"] = raster::extract(aspectL, pos, method = "bilinear")
+	        behavior[d, "slope"] = raster::extract(slopeL, pos, method = "bilinear")
 	      }
 	    }
 	  }
@@ -246,14 +299,17 @@ for (i in 1:(nrow(position)-1)) {         #Work our way through the position fil
 		behavior[d, "moonAltitude"] = moonangle$altitude
 		behavior[d, "moonIlluminatedFraction"] = moonangle$illuminatedFraction
 		behavior[d, "moonPhase"] = moonangle$phase %% 1
-		behavior[d, "mfa"] = any(behavior[d, "datetimeUTC"] %within% mfablocks)
+		#behavior[d, "mfa"] = any(behavior[d, "datetimeUTC"] %within% mfablocks)
 	}
 }
 
+## add dawn, dusk, day variables
 behavior$isDawn = (behavior$datetimeHST >= behavior$civilDawn) & (behavior$datetimeHST <= behavior$endDawn)
 behavior$isDusk = (behavior$datetimeHST >= behavior$startDusk) & (behavior$datetimeHST <= behavior$civilDusk)
 behavior$isDay = (behavior$datetimeHST >= behavior$sunrise) & (behavior$datetimeHST <= behavior$sunset)
 
+
+## next for loop
 bh = behavior[0,]
 
 for (i in 1:nrow(behavior)) {
@@ -264,7 +320,7 @@ for (i in 1:nrow(behavior)) {
   sr = behavior[i, "sunrise"]
   ss = behavior[i, "sunset"]
   sunr = F
-  if ((dt0 < sr) && (dt1 > sr)) {           #Sunrise is during this segment
+  if ((dt0 < sr) && (dt1 > sr)) {           # Sunrise is during this segment
     sunr = T
     cat("\r", i, " Sunrise ", nrow(bh))
     bh[nrow(bh), "End"] = as.POSIXct(format(behavior[i, "sunrise"], tz="UTC"), tz="UTC")
@@ -299,7 +355,7 @@ for (i in 1:nrow(behavior)) {
     bh[bhrow, "isDay"] = T
     behavior[i, ] = bh[bhrow, ]
   } 
-  if ((dt0 < ss) && (dt1 > ss)) {    #sunset is during this segment
+  if ((dt0 < ss) && (dt1 > ss)) {    # sunset is during this segment
     cat("\r", i, " Sunset ", nrow(bh))
     bh[nrow(bh), "End"] = as.POSIXct(format(behavior[i, "sunset"], tz="UTC"), tz="UTC")
     bh = rbind(bh, behavior[i, ])
@@ -337,9 +393,12 @@ for (i in 1:nrow(behavior)) {
     bh[bhrow, "isDay"] = F
   }
 }
+
+## calculation record durations
 bh$duration = as.duration(bh$Start %--% bh$End)
 bh$durationSecs = as.integer(bh$duration)
 bh$durationDays = bh$duration / ddays(1)
 
+## save file 
 write.csv(bh, paste0("Dive_behavior_files/Pseudotrack data/",Animal, "BehPos", format(Sys.time(), "%Y%m%d"), ".csv"), row.names=F)
 
