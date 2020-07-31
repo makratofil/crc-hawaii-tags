@@ -46,7 +46,7 @@ Shapefiles used in **Hawaii_Geoprocess.R**.
 Script that fits a switching state-space model using the *bsam* package (created by Dave Anderson).
 
 ## dive_pseudotracks.R
-Script that uses positional data to assign locations to behavior (dive) data based on time, bearings, etc.
+Script that uses positional data to assign locations to behavior (dive) data based on time, bearings, etc. and then populates with geospatial variables. 
 
 ## moveVis.R
 General script for making animations of animal trajectories. 
