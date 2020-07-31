@@ -18,6 +18,7 @@ library(R.utils)
 library(geosphere)
 library(lubridate)
 library(oce)
+library(lunar)
 library(maptools)
 library(raster)
 library(rgdal)
@@ -26,8 +27,8 @@ library(ncdf4)
 library(sf)
 
 # select animal/tag
-Animal = "PcTag055"
-TagFile = "PcTag055GPSargosGIS20190930.csv" # file to read in
+Animal = "GmTag190"
+TagFile = "GmTag190_DouglasFiltered_TEST.csv" # file to read in
 
 ## HST tags or tags that were programmed in HST, so will have behavior data in HST
 HSTtags = c("SbTag006", "SbTag007", "SbTag008", "SbTag010", "SbTag011", "SbTag015", "PcTag035", "PcTag037")
@@ -38,7 +39,7 @@ if(Animal %in% HSTtags) {
 }
 
 ## global options
-BehaviorFile = paste0(Animal, "-Behavior.csv")
+BehaviorFile = paste0(Animal, "-Behavior_TEST.csv")
 opt = c()
 opt$shorefile = "FisheriesIslands"
 opt$d200m = "d200m"
@@ -55,37 +56,39 @@ opt$kalaupapa = "Kalaupapa"
 opt$sanctuary = "Humpback_Sanctuary"
 opt$nwhimnm = "nwhi_mnm_py"
 opt$pmnm = "PMNM_UTM4"
-opt$depthL = "Gebco_Depth.nc"
+opt$depthL = "GebcoDepthWUTM4N.nc"
 opt$depthM = "FalkorDepthUTM4N.nc"
 opt$depthH = "MultibeamUTM4N.nc"
-opt$aspectL = "Gebco_Aspect.nc"
+opt$aspectL = "GebcoAspectWUTM4N.nc"
 opt$aspectM = "FalkorAspectUTM4N.nc"
 opt$aspectH = "MultibeamAspectUTM4N.nc"
-opt$slopeL = "Gebco_Slope.nc"
+opt$slopeL = "GebcoSlopeWUTM4N.nc"
 opt$slopeM = "FalkorSlopeUTM4N.nc"
 opt$slopeH = "MultibeamSlopeUTM4N.nc"
 
 ## read in position file
-position = read.csv(paste0("GISoutput/", TagFile), header=T, colClass=c("animal"="character", "ptt"="character", 
-						      "date"="character", "time"="character", "latitude"="numeric",
-						      "longitud"="numeric"))
+position = read.csv(paste0("TEST data/", TagFile), header=T) 
+
+## review data
+str(position)
 
 ## format datetime
 position = within(position, DateTime <- as.POSIXct(datetimeUTC, tz = "UTC"))
+position = within(position, DateTime <- as.POSIXct(date, tz = "UTC"))
 # position = within(position, DateTime <- as.POSIXct(paste(date, time), format = "%Y-%m-%d %H:%M:%S", tz = "UTC"))
 
 position = subset (position, animal == Animal) # subset
 
 ## read in behavior file
-behavior = read.csv(paste0("Dive_behavior_files/Raw/", BehaviorFile), header=T, stringsAsFactors = F)  
-behavior = behavior[behavior$What != "Message", ]
+behavior = read.csv(paste0("TEST data/", BehaviorFile), header=T, stringsAsFactors = F)  
+behavior = behavior[behavior$What != "Message", ] # remove message records
 
 ## format and add columns to be populated 
 # behavior = subset(behavior, select = -c(Number.1, Shape.1, DepthMin.1, DepthMax.1, DurationMin.1, DurationMax.1,
-#                                        Number.2, Shape.2, DepthMin.2, DepthMax.2, DurationMin.2, DurationMax.2))
+#                                        Number.2, Shape.2, DepthMin.2, DepthMax.2, DurationMin.2, DurationMax.2)) # if have extra columns
 behavior$Start = as.POSIXct(gsub("\\.5", "", behavior$Start), tz=TZ, format="%H:%M:%S %d-%b-%Y")
 behavior$End = as.POSIXct(gsub("\\.5", "", behavior$End), tz=TZ, format="%H:%M:%S %d-%b-%Y")
-behavior = subset(behavior, DeployID == Animal)
+#behavior = subset(behavior, DeployID == Animal)
 behavior$latitude = NA
 behavior$longitud = NA
 behavior$DistToShore = NA
@@ -112,7 +115,7 @@ behavior$moonAzimuth = NA
 behavior$moonAltitude = NA
 behavior$moonIlluminatedFraction = NA
 behavior$moonPhase = NA
-behavior$mfa = NA
+#behavior$mfa = NA
 behavior$isDawn = as.logical(NA)
 behavior$isDusk = as.logical(NA)
 behavior$isDay = as.logical(NA)
@@ -217,7 +220,7 @@ for (i in 1:(nrow(position)-1)) {
 	  pos = st_transform(pos, 3750)
 		dist = st_distance(pos, shore, by_element = T)
 		behavior[d, "DistToShore"] = min(dist)
-		behavior[d, "DistTo200m"] = st_distance(pos, d200m)
+		behavior[d, "DistTo200m"] = min(st_distance(pos, d200m))
 		cat("\bf")
 		pos <- st_transform(pos, crs = projection(depthH)) # better to reproject pos to projection of depth raster here
 		cat("\bg")
@@ -294,11 +297,11 @@ for (i in 1:(nrow(position)-1)) {
 		sunangle = oce::sunAngle(behavior[d, "datetimeUTC"], behavior[d, "longitud"], behavior[d, "latitude"])
 		behavior[d, "sunAzimuth"] = sunangle$azimuth
 		behavior[d, "sunAltitude"] = sunangle$altitude
-		moonangle = oce::moonAngle(behavior[d, "datetimeUTC"], behavior[d, "longitud"], behavior[d, "latitude"])
+		moonangle = oce::moonAngle(behavior[1, "datetimeUTC"], behavior[1, "longitud"], behavior[1, "latitude"])
 		behavior[d, "moonAzimuth"] = moonangle$azimuth
 		behavior[d, "moonAltitude"] = moonangle$altitude
 		behavior[d, "moonIlluminatedFraction"] = moonangle$illuminatedFraction
-		behavior[d, "moonPhase"] = moonangle$phase %% 1
+		behavior[d, "moonPhase"] = lunar.phase(behavior[d, "datetimeUTC"], name = T)
 		#behavior[d, "mfa"] = any(behavior[d, "datetimeUTC"] %within% mfablocks)
 	}
 }
@@ -309,7 +312,7 @@ behavior$isDusk = (behavior$datetimeHST >= behavior$startDusk) & (behavior$datet
 behavior$isDay = (behavior$datetimeHST >= behavior$sunrise) & (behavior$datetimeHST <= behavior$sunset)
 
 
-## next for loop
+## next for loop that creates new observation for records (surfaces/dives) that cross day/night period
 bh = behavior[0,]
 
 for (i in 1:nrow(behavior)) {
@@ -400,5 +403,5 @@ bh$durationSecs = as.integer(bh$duration)
 bh$durationDays = bh$duration / ddays(1)
 
 ## save file 
-write.csv(bh, paste0("Dive_behavior_files/Pseudotrack data/",Animal, "BehPos", format(Sys.time(), "%Y%m%d"), ".csv"), row.names=F)
+write.csv(bh, paste0("TEST data/",Animal, "_BehPos_TEST2_", format(Sys.time(), "%Y%m%d"), ".csv"), row.names=F)
 
