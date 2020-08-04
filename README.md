@@ -54,3 +54,5 @@ General script for making animations of animal trajectories.
 ## crawl_single.R
 Script that fits telemetry data from a single tag deployment to a continuous-time correlated random walk model using crawl, and predicts locations at specified time interval. 
 
+## crawl_batch.R
+Script that fits continuous-time correlated random walk model using crawl to several deployments at once (wrapper function, tidy, nested data) and predicts locations at specified time interval. 
