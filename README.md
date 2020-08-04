@@ -51,3 +51,6 @@ Script that uses positional data to assign locations to behavior (dive) data bas
 ## moveVis.R
 General script for making animations of animal trajectories. 
 
+## crawl_single.R
+Script that fits telemetry data from a single tag deployment to a continuous-time correlated random walk model using crawl, and predicts locations at specified time interval. 
+
