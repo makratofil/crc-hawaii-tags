@@ -56,3 +56,6 @@ Script that fits telemetry data from a single tag deployment to a continuous-tim
 
 ## crawl_batch.R
 Script that fits continuous-time correlated random walk model using crawl to several deployments at once (wrapper function, tidy, nested data) and predicts locations at specified time interval. 
+
+## foieGras.R
+Script that fits continuous-time state-space model (random walk or correlated random walk) to either a single deployment or several deployments at once, and predicts locations at a specified time interval. Script also includes code to fit a simple time-varying move persistence model. 
