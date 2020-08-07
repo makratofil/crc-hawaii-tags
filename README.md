@@ -61,4 +61,4 @@ Script that fits continuous-time correlated random walk model using crawl to sev
 Script that fits continuous-time state-space model (random walk or correlated random walk) to either a single deployment or several deployments at once, and predicts locations at a specified time interval. Script also includes code to fit a simple time-varying move persistence model. 
 
 ## TravelSpeedEst.R
-Script that calculates deltaT (time difference between successive locations), calculates the distance between successive points, and then calculates horizontal travel speed using the two computed metrics. **Can also get travel speed estimates from predicted output in crawl (return.type = 'flat') after fitting model. see *crawl_single.R* and *crawl_batch.R* ** 
+Script that calculates deltaT (time difference between successive locations), calculates the distance between successive points, and then calculates horizontal travel speed using the two computed metrics. **Can also get travel speed estimates from predicted output in crawl (return.type = 'flat') after fitting model. see *crawl_single.R* and *crawl_batch.R* scripts** 
