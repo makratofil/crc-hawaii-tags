@@ -62,3 +62,6 @@ Script that fits continuous-time state-space model (random walk or correlated ra
 
 ## TravelSpeedEst.R
 Script that calculates deltaT (time difference between successive locations), calculates the distance between successive points, and then calculates horizontal travel speed using the two computed metrics. **Can also get travel speed estimates from predicted output in crawl (return.type = 'flat') after fitting model. see *crawl_single.R* and *crawl_batch.R* scripts** 
+
+## erddap_hycom_extract_traj.R
+Script that extracts variables from selected datasets available on ERDDAP servers for locations along a tagged animal's movement trajectory. 
