@@ -57,6 +57,12 @@ Script that fits telemetry data from a single tag deployment to a continuous-tim
 ## crawl_batch.R
 Script that fits continuous-time correlated random walk model using crawl to several deployments at once (wrapper function, tidy, nested data) and predicts locations at specified time interval. 
 
+## crawl_fixpath.R
+Script that fits crawl model (as in **crawl_batch.R** and **crawl_single.R**) and shows an example of re-routing predicted paths around land using the fix_path() function. Will need to use **crawl_fixpath_mak.R** script for this process to work. 
+
+## crawl_fixpath_mak.R
+Script that includes the base functions for the fix_path() function from the devel branch of crawl, with minor adjustments/edits. Changes to original function code include making an output object a list (rather than data frame, fixes small tibble bug) and adjusting barrier buffer in fix segments function (might need to be adjusted later). Run the code in this script prior to re-routing predicted paths in the script: **crawl_fixpath.R**
+
 ## foieGras.R
 Script that fits continuous-time state-space model (random walk or correlated random walk) to either a single deployment or several deployments at once, and predicts locations at a specified time interval. Script also includes code to fit a simple time-varying move persistence model. 
 
