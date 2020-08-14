@@ -100,6 +100,14 @@ tbl_locs %>% dplyr::group_by(animal) %>%
             start_date = min(date),
             end_date = max(date))
 
+## assign error ellipse information for deployment locations 
+tbl_locs <- tbl_locs %>%
+  mutate(
+    smaj = ifelse(lc == "DP", 50, smaj),
+    smin = ifelse(lc == "DP", 50, smin),
+    e_orient = ifelse(lc == "DP", 0, e_orient)
+  )
+
 ## visualize source data with mapview (interactive map)
 # first project data 
 sf_locs <- sf::st_as_sf(tbl_locs, coords = c("lon","lat")) %>%
