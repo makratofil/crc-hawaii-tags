@@ -6,7 +6,7 @@
 #       Original code by David Anderson
 #       Edited code (this) by Michaela A. Kratofil
 #
-#       24 MAR 2020
+#       02 OCT 2020
 #
 #####################################################################################
 
@@ -51,41 +51,44 @@ require (scales)
 library(suncalc)
 library(tidyr)
 library(dplyr)
+library(gganimate)
 
 #### make function to plot all dives that occurred during the entire duration of the deployment ####
-
+# *** NOTE *** If tag was programmed in HST, make sure to change, filetz = "Pacific/Honolulu"
 DivePlotAll = function(behavior,
-                    title = NULL,
-                    gapcolor = "black",
-                    plotcolor = "black",
-                    filetz = "UTC",
-                    plottz = "Pacific/Honolulu",
-                    depths = c(-500, -250, 0),
-                    depthlab = c("-500", "-250", "0"),
-                    depthlim = NULL,
-                    datelim = NULL,
-                    nights = NULL,
-                    datebreaks = "2 days",
-                    lineweight = 0.2,
-                    gaps = T,
-                    grid = T) {
-
+                       title = NULL,
+                       gapcolor = "black",
+                       plotcolor = "black",
+                       filetz = "UTC",
+                       plottz = "Pacific/Honolulu",
+                       depths = c(-1500, -1000, -500, -250, 0),
+                       depthlab = c("1500", "1000", "-500", "-250", "0"),
+                       depthlim = NULL,
+                       datelim = NULL,
+                       nights = NULL,
+                       datebreaks = "2 days",
+                       lineweight = 0.2,
+                       gaps = T,
+                       grid = T) {
+  
+  
+  
   behavior$Start = with_tz(as.POSIXct(gsub("\\.5", "", behavior$Start), tz=filetz, format="%H:%M:%S %d-%b-%Y"), tzone="Pacific/Honolulu")
   behavior$End = with_tz(as.POSIXct(gsub("\\.5", "", behavior$End), tz=filetz, format="%H:%M:%S %d-%b-%Y"), tzone="Pacific/Honolulu")
   behavior$DepthMin = 0 - behavior$DepthMin
   messages = subset(behavior, What == "Message")
   surface = subset(behavior, What == "Surface")
   dive = subset(behavior, What == "Dive")
-
+  
   p = ggplot(data = behavior, aes(Start, DepthMin)) + theme_bw() +
-    theme(axis.title.x = element_blank(), 
-          axis.text.x = element_text(angle = 45, hjust = 1),
-          panel.border = element_rect(colour = "black", fill=NA, size=1.5)) +
+    theme(#axis.title.x = element_blank(), 
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      panel.border = element_rect(colour = "black", fill=NA, size=1.5)) +
     coord_cartesian(xlim = datelim)
   if (!grid) {
     p = p + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
   }
-
+  
   if (!is.null(nights)) {
     if (gaps) {
       p = p + geom_rect(data = nights, mapping = aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = 0),
@@ -95,15 +98,15 @@ DivePlotAll = function(behavior,
                         fill = "grey", alpha = 0.5, inherit.aes = F)
     }
   }
-
+  
   if (!is.null(title)) {
     p = p + ggtitle(title)
   }
-
+  
   datetime = with_tz(as.POSIXct(NA), tzone="Pacific/Honolulu")
   depth = as.numeric(NA)
   grp = as.numeric(NA)
-
+  
   ### NEED TO BE MORE EXPLICIT WITH TIME ZONES AND CONCATENATE.
   ## If you do not tell c() what time zone each element should be in,
   ## it will default to that on on your machine. In most cases this isn't an
@@ -131,23 +134,23 @@ DivePlotAll = function(behavior,
       grp = c(grp, i, i, i, i)
     }
   }
-
+  
   dive.df = data.frame(datetime, depth, grp)
   p = p + geom_line(data = dive.df, mapping = aes(datetime, depth, group =  grp), size = lineweight, color = plotcolor)
-
+  
   datetime = with_tz(as.POSIXct(NA), tzone="Pacific/Honolulu")
   depth = as.numeric(NA)
   grp = as.numeric(NA)
-
+  
   for (i in 1:nrow(surface)) {
     datetime = with_tz(c(datetime, surface[i, "Start"], surface[i, "End"]), tzone="Pacific/Honolulu")
     depth = c(depth, 0, 0)
     grp = c(grp, i, i)
   }
-
+  
   surface.df = data.frame(datetime, depth, grp)
   p = p + geom_line(data = surface.df, mapping = aes(datetime, depth, group =  grp), size = lineweight, color = plotcolor)
-
+  
   if (is.null(depthlim)) {
     depth_lower = min(dive$DepthMin) * 1.15
   } else {
@@ -158,31 +161,40 @@ DivePlotAll = function(behavior,
   } else {
     depth_upper = 0
   }
-
+  
   xmin = with_tz(as.POSIXct(NA), tzone="Pacific/Honolulu")
   xmax = with_tz(as.POSIXct(NA), tzone="Pacific/Honolulu")
+  
+  gapCheck = 0
   for (i in 2:nrow(messages)) {
+    
+    dt <- difftime( messages[i-1, "End"], messages[i, "Start"], units = 'secs')
     ## Need an indicator that avoids plotting gaps if none exist
     ## Otherwise you get screwed with gaps = TRUE
-    gapCheck = 0
-      if (messages[i-1, "End"] + 60 < messages[i, "Start"]) {
+    if (!is.na(dt)) {
+      if (dt < -60) {
         xmin = c(xmin, messages[i-1, "End"])
         xmax = c(xmax, messages[i, "Start"])
         ymin = abs(depth_lower) * 0.05
         ymax = abs(depth_lower) * 0.15
         ## Update if gaps were found
-        gapCheck = 1
+        gapCheck = gapCheck + 1
       }
+    }
   }
-  ## If you are plotting 
+  
+  gapCheck <- ifelse(gapCheck > 0, 1, 0) 
+  
+  
+  ## If you are plotting gaps
   if (gaps & gapCheck) {
     gaps.df = data.frame(xmin, xmax, ymin, ymax)
     gaps.df = gaps.df[!is.na(gaps.df$xmin), ]
     p = p + geom_rect(data = gaps.df, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
                       fill = gapcolor, inherit.aes = F) +
       scale_y_continuous(breaks = c(depths, mean(c(ymin, ymax))),
-                               labels = c(depthlab, "Gaps"),
-                               limits = c(depth_lower, depth_upper)) +
+                         labels = c(depthlab, "Gaps"),
+                         limits = c(depth_lower, depth_upper)) +
       scale_x_datetime(labels = date_format("%Y-%m-%d", tz = "Pacific/Honolulu"), breaks = date_breaks(datebreaks),
                        expand = c(0,0)) +
       ylab("Depth (m)")
@@ -204,8 +216,8 @@ DivePlotDay = function(behavior,
                        plotcolor = "black",
                        filetz = "UTC",
                        plottz = "Pacific/Honolulu",
-                       depths = c(-500, -250, 0),
-                       depthlab = c("-500", "-250", "0"),
+                       depths = c(-1500, -1000, -500, -250, 0),
+                       depthlab = c("-1500", "-1000", "-500", "-250", "0"),
                        depthlim = NULL,
                        datelim = NULL,
                        nights = NULL,
@@ -305,17 +317,22 @@ DivePlotDay = function(behavior,
   
   xmin = with_tz(as.POSIXct(NA), tzone="Pacific/Honolulu")
   xmax = with_tz(as.POSIXct(NA), tzone="Pacific/Honolulu")
+  
+  gapCheck = 0
   for (i in 2:nrow(messages)) {
+    
+    dt <- difftime( messages[i-1, "End"], messages[i, "Start"], units = 'secs')
     ## Need an indicator that avoids plotting gaps if none exist
     ## Otherwise you get screwed with gaps = TRUE
-    gapCheck = 0
-    if (messages[i-1, "End"] + 60 < messages[i, "Start"]) {
-      xmin = c(xmin, messages[i-1, "End"])
-      xmax = c(xmax, messages[i, "Start"])
-      ymin = abs(depth_lower) * 0.05
-      ymax = abs(depth_lower) * 0.15
-      ## Update if gaps were found
-      gapCheck = 1
+    if (!is.na(dt)) {
+      if (dt < -60) {
+        xmin = c(xmin, messages[i-1, "End"])
+        xmax = c(xmax, messages[i, "Start"])
+        ymin = abs(depth_lower) * 0.05
+        ymax = abs(depth_lower) * 0.15
+        ## Update if gaps were found
+        gapCheck = gapCheck + 1
+      }
     }
   }
   ## If you are plotting 
@@ -342,25 +359,30 @@ DivePlotDay = function(behavior,
 }
 
 #### Read in behavior file and process ####
-BehaviorFile = "Dive Behavior/Raw/TtTag035-Behavior.csv"
-behavior <- read.csv(BehaviorFile, header=T, stringsAsFactors = F)
+Tag = "GmTag231"
+ptt = "180166"
+behavior <- read.csv("Dive behavior/GmTag231_180166_DAP-Behavior_Corrected.csv", header=T, stringsAsFactors = F)
+behavior$DepthMin <- behavior$DepthMin*2
+behavior$DepthMax <- behavior$DepthMax*2
 
 ## Get sunrise and sunset times from suncalc package using Argos locations ##
-LocsFile = "Raw Argos files/TtTag035/175452-Locations.csv"
-locs <- read.csv(LocsFile, header = T, stringsAsFactors = F)
-locs <- locs[locs$Type == "Argos",]
+## OR obtain from dive pseudotrack GIS file for tag ##
+LocsFile <- read.csv("Douglas Filtered/GmTag004-231_DouglasFiltered_ArgosOnly_r15d3lc2_2020JULv3.csv", header = T)
+locs <- filter(LocsFile, animal == "GmTag231") # filter out tag (Argos only locs here)
 
 # format datetimes
-locs$dateUTC <- as.POSIXct(locs$Date, format = "%H:%M:%S %d-%b-%Y", tz = "UTC")
+locs$dateUTC <- as.POSIXct(locs$date, tz = "UTC")
 locs$dateHST <- with_tz(locs$dateUTC, tzone = "Pacific/Honolulu")
-locs$date <- as.Date(locs$dateUTC, format = "%Y%m%d")
+locs$date_ymd <- as.Date(locs$dateUTC, format = "%Y%m%d")
 
 # compute average lat/lon for each day for suncalc
 sunriseset <- locs %>%
-  select(Latitude, Longitude, date) %>%
-  group_by(date) %>%
-  summarise(mean(Latitude), mean(Longitude)) %>%
-  rename(lat = "mean(Latitude)", lon = "mean(Longitude)")
+  select(latitude, longitud, date_ymd) %>%
+  group_by(date_ymd) %>%
+  summarise(mean(latitude), mean(longitud)) %>%
+  rename(lat = "mean(latitude)", lon = "mean(longitud)")
+
+colnames(sunriseset)[colnames(sunriseset) == "date_ymd"] <- "date"
 
 # get sunrise/sunset times
 sunriseset <- getSunlightTimes(data = sunriseset, keep = c("sunrise", "sunset"), tz = "Pacific/Honolulu")
@@ -373,26 +395,31 @@ locs_sub <- locs[locs$dayHST %in% c(17:25),]
 ## The first value/day for sunrise times needs to be commented out for the math
 ## to work correctly. 
 xmin = as.POSIXct(c(
-         "2020-02-17 18:38:41",
-         "2020-02-18 18:38:57",
-         "2020-02-19 18:39:28",
-         "2020-02-20 18:40:07",
-         "2020-02-21 18:40:37",
-         "2020-02-22 18:40:57",
-         "2020-02-23 18:41:22",
-         "2020-02-24 18:41:43",
-         "2020-02-25 18:42:23"),
+         "2020-02-12 18:35:00",
+         "2020-02-13 18:36:31",
+         "2020-02-14 18:37:16",
+         "2020-02-15 18:38:03",
+         "2020-02-16 18:38:21",
+         "2020-02-17 18:38:26",
+         "2020-02-18 18:38:00",
+         "2020-02-19 18:37:59",
+         "2020-02-20 18:38:25",
+         "2020-02-21 18:40:36",
+         "2020-02-22 18:41:04"),
          tz = "Pacific/Honolulu") 
 xmax = as.POSIXct(c(
-         #"2020-02-17 07:10:48",
-         "2020-02-18 07:10:03",
-         "2020-02-19 07:09:24",
-         "2020-02-20 07:08:47",
-         "2020-02-21 07:08:00",
-         "2020-02-22 07:07:14",
-         "2020-02-23 07:06:28",
-         "2020-02-24 07:05:23",
-         "2020-02-25 07:04:58",with_tz(as.POSIXct(NA), tzone="Pacific/Honolulu")),
+         #"2020-02-12 07:13:42",
+         "2020-02-13 07:13:58",
+         "2020-02-14 07:13:31",
+         "2020-02-15 07:13:08",
+         "2020-02-16 07:12:07",
+         "2020-02-17 07:11:08",
+         "2020-02-18 07:10:01",
+         "2020-02-19 07:09:07",
+         "2020-02-20 07:08:20",
+         "2020-02-21 07:08:33",
+         "2020-02-22 07:07:49",
+         with_tz(as.POSIXct(NA), tzone="Pacific/Honolulu")),
          tz = "Pacific/Honolulu") 
 
 # create nights dataframe for plot function
@@ -402,48 +429,38 @@ nights = data.frame(xmin, xmax)
 
 # specify folder to save plots to #
 plot_folder = "Plots/Dive plots/"
-tag = "TtTag035"
 
-# TtTag035
-TtTag035.all = DivePlot(behavior, title = "TtTag035 Complete", gaps = F, plotcolor = "blue", depthlim = -500,
-                        datebreaks = "1 day", nights = nights, filetz = "UTC", grid = F)
+# PcTag026
+GmTag231.all = DivePlotAll(behavior, title = "GmTag231 Complete", gaps = T, plotcolor = "blue", depthlim = -1500,
+                        datebreaks = "1 day", nights = nights, filetz = "UTC", grid = F,
+                        gapcolor = "black", depthlab = c("-1500","-1000","-500","-250","0"))
 
-TtTag035.all = TtTag035.all + theme(axis.text=element_text(size=11, colour = "black"),
-                                    axis.title=element_text(size=12)) +
-  xlab("")
 
-TtTag035.all
+GmTag231.all =  GmTag231.all + theme(axis.text=element_text(size=11, colour = "black"),
+                                    axis.title=element_text(size=12)) + xlab("")
+GmTag231.all
 
-TtTag035.all.points <- TtTag035.all + geom_point(data = locs_sub, mapping = aes(x = dateHST, y = 0),
-                                                 shape = 23, fill = "red") +
-  xlab("")
-
-TtTag035.all.points
-
-ggsave(paste0(plot_folder, tag, "_AllDives_wLocations.jpg"), TtTag035.all.points, device = "jpeg", units = "in", width = 8, height = 4, dpi = 300)
+ggsave(paste0(plot_folder, Tag, "_AllDives_2020Oct2.jpg"), GmTag231.all, device = "jpeg", units = "in", width = 8, height = 4, dpi = 300)
 
 ### plot dives for each 24 hour period ##
 # change the datelim = to the two dates between 24 hour period
-
-# TtTag035
-TtTag035.1 = DivePlot(behavior, title = "TtTag035, 2/25 - 2/26", gapcolor = "black", plotcolor = "blue", depthlim = -500,
+GmTag231.1 = DivePlotDay(behavior, title = "GmTag231, 2/21 - 2/22", gapcolor = "black", plotcolor = "blue", depthlim = -1500,
                       datebreaks = "2 hour", nights = nights,
-                      datelim = as.POSIXct(c("2020-02-25 12:00:00", "2020-02-25 19:00:00"), tz = "Pacific/Honolulu"),
+                      datelim = as.POSIXct(c("2020-02-21 12:00:00", "2020-02-22 12:00:00"), tz = "Pacific/Honolulu"),
                       filetz = "UTC",
-                      gaps = F,
+                      gaps = T,
                       grid = F, lineweight = 0.3)
 
-TtTag035.1 = TtTag035.1 + theme(axis.text.y=element_text(size=8, colour = "black"),
+GmTag231.1 = GmTag231.1 + theme(axis.text.y=element_text(size=8, colour = "black"),
                                 axis.title=element_text(size=12),
                                 axis.text.x = element_text(size = 8, colour = "black"))
 
-TtTag035.1 = TtTag035.1 + xlab("Time (HST)")
+GmTag231.1 = GmTag231.1 + xlab("Time (HST)")
 
-TtTag035.1
+GmTag231.1
 
-ggsave(paste0(plot_folder, tag, "_Dives", "2020FEB25-26.jpg"), TtTag035.1, device = "jpeg", units = "in", width = 8,
+ggsave(paste0(plot_folder, Tag, "_Dives", "2020FEB21-22.jpg"), GmTag231.1, device = "jpeg", units = "in", width = 8,
        height = 4, dpi = 300)
-
 
 
 # write csv that includes Start dives in HST to cross reference with plots #
@@ -458,5 +475,5 @@ tsurface$End <- as.POSIXct(tsurface$End, format = "%H:%M:%S %d-%b-%Y", tz = "UTC
 tsurface$StartHST <- with_tz(tsurface$Start, tzone = "Pacific/Honolulu")
 tsurface$EndHST <- with_tz(tsurface$End, tzone = "Pacific/Honolulu")
 
-write.csv(tsurface, "TtTag034_Behavior_SurfaceOnly_wHST.csv", row.names = F)
-write.csv(tdives, "TtTag034_Behavior_DivesOnly_wHST.csv", row.names = F)
+write.csv(tsurface, "GmTag231_Behavior_SurfaceOnly_wHST.csv", row.names = F)
+write.csv(tdives, "GmTag231_Behavior_DivesOnly_wHST.csv", row.names = F)
