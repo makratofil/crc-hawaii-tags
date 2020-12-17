@@ -4,7 +4,7 @@
 ## Originally authored by Dave Anderson, Cascadia Research
 ## Edited, commented by Michaela A. Kratofil
 
-## Most recent edits: 16 Dec 2020
+## Most recent edits: 17 Dec 2020
 
 ###################################################################################
 
@@ -27,8 +27,8 @@ library(ncdf4)
 library(sf)
 
 # select animal/tag
-Animal = "TtTag035"
-ptt = "175452"
+Animal = "TtTag034"
+ptt = "173076"
 #TagFile = "PcTag001-066_DouglasFiltered_r20d3lc2_ArgosGPS_2020OCTv2.csv" # file to read in
 TagFile = "All_ExpRespTags_thru2020_Crawl_5minStep_ArgosGPS_wLocType.csv" # file to read in
 
@@ -71,7 +71,6 @@ opt$slopeH = "MultibeamSlopeUTM4N.nc"
 
 ## read in position file
 position = read.csv(paste0("SSM/", TagFile), header=T) 
-
 ## review data
 str(position)
 
@@ -86,12 +85,13 @@ position <- position %>%
     animal = deployid,
     longitud = longitude
   )
-#position <- dplyr::filter(position, locType == "p")
+
+position <- dplyr::filter(position, locType == "p")
 position = subset (position, animal == Animal) # subset
 
 ## read in behavior file
 behavior = read.csv(paste0("Dive behavior/", BehaviorFile), header=T, stringsAsFactors = F)
-behavior = read.csv("Dive behavior/TtTag035_175452-Behavior_corrected.csv")
+behavior = read.csv("Dive behavior/TtTag034_173076-Behavior_corrected.csv")
 behavior = behavior[behavior$What != "Message", ] # remove message records
 
 ## format and add columns to be populated 
@@ -325,7 +325,11 @@ behavior$isDusk = (behavior$datetimeHST >= behavior$startDusk) & (behavior$datet
 behavior$isDay = (behavior$datetimeHST >= behavior$sunrise) & (behavior$datetimeHST <= behavior$sunset)
 
 
-## next for loop that creates new observation for records (surfaces/dives) that cross day/night period
+## next for loop that splits surface periods/blocks that spanned sunrise or sunset into 2 records,
+## as to have one for each day/night. appropriate time/duration is allotted for each record.
+## e.g., first record's End time would become the sunrise/sunset time, and a new record will be 
+## created starting with sunrise/sunset and ending with the original End time for that record. 
+## This is only done for SURFACE periods.
 bh = behavior[0,]
 
 for (i in 1:nrow(behavior)) {
@@ -336,13 +340,14 @@ for (i in 1:nrow(behavior)) {
   sr = behavior[i, "sunrise"]
   ss = behavior[i, "sunset"]
   sunr = F
-  if ((dt0 < sr) && (dt1 > sr)) {           # Sunrise is during this segment
+  if ((dt0 < sr) && (dt1 > sr)) {           # If start < sunrise, and end > sunrise, sunrise is in this segment
     sunr = T
     cat("\r", i, " Sunrise ", nrow(bh))
-    bh[nrow(bh), "End"] = as.POSIXct(format(behavior[i, "sunrise"], tz="UTC"), tz="UTC")
-    bh = rbind(bh, behavior[i, ])
+    bh[nrow(bh), "End"] = as.POSIXct(format(behavior[i, "sunrise"], tz="UTC"), tz="UTC") # make end time record = sunrise
+    bh = rbind(bh, behavior[i, ]) # bind back to behavior
     bhrow = nrow(bh)
-    bh[bhrow, "Start"] = as.POSIXct(format(behavior[i, "sunrise"], tz="UTC"), tz="UTC")
+    bh[bhrow, "Start"] = as.POSIXct(format(behavior[i, "sunrise"], tz="UTC"), tz="UTC") # start of split record = sunrise 
+    bh[bhrow, "What"] = "Surface" # surface periods only
     bh[bhrow, "Number"] = NA
     bh[bhrow, "Shape"] = ""
     bh[bhrow, "DepthMin"] = NA
@@ -371,7 +376,7 @@ for (i in 1:nrow(behavior)) {
     bh[bhrow, "isDay"] = T
     behavior[i, ] = bh[bhrow, ]
   } 
-  if ((dt0 < ss) && (dt1 > ss)) {    # sunset is during this segment
+  if ((dt0 < ss) && (dt1 > ss)) {    # if start < sunset, and end > sunset, sunset is in this segment
     cat("\r", i, " Sunset ", nrow(bh))
     bh[nrow(bh), "End"] = as.POSIXct(format(behavior[i, "sunset"], tz="UTC"), tz="UTC")
     bh = rbind(bh, behavior[i, ])
@@ -416,6 +421,7 @@ bh$durationSecs = as.integer(bh$duration)
 bh$durationDays = bh$duration / ddays(1)
 
 ## save file 
-write.csv(bh, paste0("GIS output/Dive pseudotracks/",Animal, "_BehPos_crawl_5minStep_v3_",
+write.csv(bh, paste0("GIS output/Dive pseudotracks/",Animal, "_BehPos_crawl_5minStep_FixedPath_",
                      format(Sys.time(), "%Y%m%d"), ".csv"), row.names=F)
+
 
