@@ -1,13 +1,25 @@
 # crc-hawaii-tags
 R scripts for various types of analyses and processing of satellite tag data for Cascadia Research Collective Hawaiian odontocete projects.
 
+## CSVtoKML.R
+Script that reads data from CSV file and writes a KML file to be viewed in Google Earth.
+
 ## DistBTPairs_MapsPlots.R
 Script that generates maps and plots of tracklines for pairs of tags with overlapping satellite passes (within 15 mins of eachother). First need to run **NDistSatDat_20160421.R**,
 a script made by Megan Ferguson that calculates to distance between pairs with common satellite passes. Use summary statistics file as input into this script.
 
+## DistBTSightings.R
+Script that calculates distances between all possible pairs of sightings. This analysis has been done previously at CRC and was done for the recent Kogia sima paper (submitted 2021). This script includes the analysis applied to various subsets of the data (e.g., individuals pooled, by island). 
+
 ## DiveProfilePlots.R
 Script that plots the dive profile of a SPLASH/Mk-10 tag. Pay particular attention to datetimes and time zones of tag/location data (tags programmed in HST will have behavior data
 records in HST). Options to plot dives for entire deployment or by specified time period.
+
+## DiveSeriesCheck.R
+Script uses the same functions in DiveProfilePlots.R to plot behavior data dive profiles against time series file depth readings. This script is a part of the error check protocol/SOP - time series depths should align with behavior data dive depths (for example, a time series depth at/near the surface during a behavior file deep dive would indicate some error with the recorded data). 
+
+## Drone_DistBearing.R
+Script that calculates the distance and bearing between consecutive locations of a drone flight track, writes csv and KML files. 
 
 ## EddyVectorAnimations.R
 Script that reads in all daily eddy vector plots (**EddyVectorTrackPlots.R**), annotates them with CRC logo and website link, and compiles them into an animation.
@@ -28,6 +40,9 @@ Script that formats Kalman reprocessed data received from Argos CLS for input in
 ## FormatWC_forMovebank_batch.R
 Script that formats location data obtained from Wildlife Computers portal for input into Movebank/Douglas Filter.
 
+## GPXtoCSV.R
+Script that reads GPX file from research vessel and extracts different variables (e.g., coordinates, times, waypoints), and writes csv file and/or KML file. 
+
 ## Hawaii_Geoprocess.R
 Script that co-locates positional data with various geospatial variables (depth, slope, distance to shore, time of day, moon phase), as well as a number of variables 
 related to different studies (e.g., monuments, HARPs).
@@ -42,8 +57,11 @@ Script that includes custom ggplot themes and other map and plot aesthetics that
 ## Shapefiles.zip
 Shapefiles used in **Hawaii_Geoprocess.R**.
 
+## append_ex.R
+Example of appending newly processed data to batch/compiled file. 
+
 ## bsam.R
-Script that fits a switching state-space model using the *bsam* package (created by Dave Anderson).
+Script that shows example of fitting satellite tag data to a hierarchical switching state-space model using the *bsam* package. 
 
 ## dive_pseudotracks.R
 Script that uses positional data to assign locations to behavior (dive) data based on time, bearings, etc. and then populates dive locations with geospatial variables.
