@@ -1,13 +1,12 @@
 ## Script for restricting Fastloc-GPS data 
 ## Residual < 35, time error < 10 seconds
 
-
 ## Author: Michaela A. Kratofil, Cascadia Research
 ## Updated: 26 Aug 2021
 
 ## ========================================================================== ##
 
-# load libraries
+## load libraries
 library(lubridate)
 library(dplyr)
 library(purrr)
@@ -21,6 +20,7 @@ files <- list.files(path = paste0("Fastloc-GPS/Raw files/"),
 # select files you need to filter
 files
 files <- files[17]
+files
 
 # read in files using purrr. skip empty rows 
 file_dfs <- purrr::map_df(files, ~fread(.x, skip = "Name"))
@@ -53,12 +53,17 @@ sub_comp <- sub[complete.cases(sub),]
 ## less than 35 and time error less than 10 seconds 
 filt <- sub_comp %>%
   filter(Residual < 35) %>%
-  filter(abs(`Time Error`) < 10)
+  filter(round(abs(`Time Error`),0) < 10)
 
 ## for batches: summarise data, and update location summary files ##
 sum <- filt %>%
   group_by(Name) %>%
   summarise(N = n())
 
+# add ptt column
+filt$ptt <- 180168
+
 ## save file 
-write.csv(all, "FastLoc-GPS/Processed/MdTag020_FastGPS_Restricted_r35te10.csv", row.names = F)
+write.csv(filt, "FastLoc-GPS/Processed/MdTag020_FastGPS_Restricted_r35te10.csv", row.names = F)
+
+
