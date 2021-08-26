@@ -1,93 +1,64 @@
-# Script for restricting Fastloc-GPS data #
-# Residual < 35, time error < 10 seconds
+## Script for restricting Fastloc-GPS data 
+## Residual < 35, time error < 10 seconds
 
 
-# Michaela A. Kratofil
-# 10 JUN 2020
+## Author: Michaela A. Kratofil, Cascadia Research
+## Updated: 26 Aug 2021
+
+## ========================================================================== ##
 
 # load libraries
 library(lubridate)
-library(tidyverse)
+library(dplyr)
+library(purrr)
+library(data.table)
 
-# specify species 
-spp = "Gm"
-tag_range = "Tag070-231"
-deploy_file = paste0(spp, tag_range, "_DeployInfoForRv2.csv")
-
-# import all douglas filtered files for species
+## import all Fastloc GPS files for species
 files <- list.files(path = paste0("Fastloc-GPS/Raw files/"),
                     pattern = "-FastGPS.csv",
                     full.names = T, recursive = T)
 
-files <- files[c(1:5, 7:10, 12:16)]
+# select files you need to filter
+files
+files <- files[17]
 
-## Function to format and select all locations ##
-format <- function(x) {
-  # read in the tag file
-  d <- read.csv(x, header = T, stringsAsFactors = F)
-  
-  # make date column
-  d$date <- as.POSIXct(paste(d$Day, d$Time), format = "%d-%b-%y %H:%M:%S", tz = "UTC")
-  
-  # select columns
-  s <- select(d, Name, date, Latitude, Longitude, Satellites, Bad.Sats, Residual, Time.Error)
-  
-  # compute total satellites
-  s$Bad.Sats[is.na(s$Bad.Sats)] <- 0
-  s <- s %>% mutate(TotSats = Satellites - Bad.Sats)
-  
-  # complete cases
-  c <- s[complete.cases(s),]
-  
-  return(c)
+# read in files using purrr. skip empty rows 
+file_dfs <- purrr::map_df(files, ~fread(.x, skip = "Name"))
 
-}
+## format data ## =========================================================== ##
+# datetime 
+file_dfs$date <- as.POSIXct(paste0(file_dfs$Day, " ", file_dfs$Time),
+                                    format = "%d-%b-%Y %H:%M:%S", tz = "UTC")
 
-# apply the function
-dfs1 <- lapply(files, format)
-all1 <- bind_rows(dfs1)
+# check
+tz(file_dfs$date)
 
-## Function to filter ##
-filter <- function(x) {
-  # read in the tag file
-  d <- read.csv(x, header = T, stringsAsFactors = F)
-  
-  # make date column
-  d$date <- as.POSIXct(paste(d$Day, d$Time), format = "%d-%b-%y %H:%M:%S", tz = "UTC")
-  
-  # select columns
-  s <- select(d, Name, date, Latitude, Longitude, Satellites, Bad.Sats, Residual, Time.Error)
-  
-  # compute total satellites
-  s$Bad.Sats[is.na(s$Bad.Sats)] <- 0
-  s <- s %>% mutate(TotSats = Satellites - Bad.Sats)
-  
-  # complete cases
-  c <- s[complete.cases(s),]
-  
-  # restrict locations to those with residual < 35 and time error < 10 secs
-  f <- c %>%
-    filter(Residual < 35) %>%
-    filter(abs(Time.Error) < 10) 
-  
-  return(f)
-}
+## select columns we need 
+sub <- dplyr::select(file_dfs, Name, date, Latitude, Longitude, Satellites, `Bad Sats`,
+                     Residual, `Time Error`)
 
-# apply the function
-dfs <- lapply(files, filter)
-all <- bind_rows(dfs)
+## compute the total number of satellites (sats minus bad sats)
+# first make all NA Bad Sats = 0
+sub <- sub %>%
+  mutate(
+    `Bad Sats` = ifelse(is.na(`Bad Sats`), 0, `Bad Sats`),
+    TotSats = Satellites - `Bad Sats`
+    
+  )
 
-## Function to summarize counts ##
+## now remove any record without decoded location
+sub_comp <- sub[complete.cases(sub),]
 
-summ <- function(x) {
-  
-  N = x %>%
-    group_by(Name) %>%
-    summarise(N = n())
-}
+## Now filter the data. We'll want to restrict locations to those with residual
+## less than 35 and time error less than 10 seconds 
+filt <- sub_comp %>%
+  filter(Residual < 35) %>%
+  filter(abs(`Time Error`) < 10)
 
-# apply function 
-Sum <- summ(all)
-Sum1 <- summ(all1)
+## for batches: summarise data, and update location summary files ##
+sum <- filt %>%
+  group_by(Name) %>%
+  summarise(N = n())
 
-write.csv(all, "FastLoc-GPS/Processed/GmTag185-231_FastGPS_Restricted_r35te10.csv", row.names = F)
+## save file 
+write.csv(all, "FastLoc-GPS/Processed/MdTag020_FastGPS_Restricted_r35te10.csv", row.names = F)

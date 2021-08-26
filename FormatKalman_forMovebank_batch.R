@@ -1,11 +1,11 @@
-# Script for formatting Kalman filtered argos data for Movebank (Douglas filter) #
+## FormatKalman_forMovebank.R: Format batched Kalman filtered/smoothed data
+## reprocessed thru Argos CLS for importing into Movebank to run the Douglas
+## Filter
 
+## Author: Michaela A. Kratofil, Cascadia Research
+## Updated: 26 August 2021
 
-# Michaela A. Kratofil
-# 28 APR 2020
-
-# set working directory 
-#setwd("E:\\MfGCrw Project - MAK")
+## ========================================================================== ##
 
 # load libraries
 library(lubridate)
@@ -13,23 +13,32 @@ library(dplyr)
 
 # specify species 
 spp = "Gm"
-tag_range = "Tag080-231"
+tag_range = "Tag004-231"
 smooth_file = paste0(spp, tag_range, "_smoothing/")
-deploy_file = paste0(spp, tag_range, "_DeployInfoForR.csv")
+deploy_file = paste0("Summary files/Location info for R/", spp, tag_range, "_DeployInfoForR.csv")
 
 # import all douglas filtered files for species
 files <- list.files(path = paste0("Raw Argos files/", spp),
                     pattern = ".smoothing.csv",
                     full.names = T, recursive = T)
 
+files
 # sub files if need
-files <- files[c(1:5)]
+files <- files[c(16:22)]
+files
 
 # import deployment information for tags 
-deploy <- read.csv(paste0("Summary files/", deploy_file), header = T)
+deploy <- read.csv(deploy_file, header = T)
 deploy$date <- as.POSIXct(deploy$date, tz = "UTC")
 #deploy$LC <- "DP"
-deploy <- filter(deploy, animal %in% c("GmTag080","GmTag081","GmTag082","GmTag083","GmTag115"))
+deploy <- filter(deploy, animal %in% c("GmTag026",
+                                       "GmTag027",
+                                       "GmTag028",
+                                       "GmTag029",
+                                       "GmTag030",
+                                       "GmTag031",
+                                       "GmTag032"))
+
 
 ## Function to format for Movebank ##
 format <- function(x, u) {
@@ -38,7 +47,7 @@ format <- function(x, u) {
   
   # rename/add columns
   colnames(d)[colnames(d) == "Platform.ID.No."] <- "ptt"
-  d$ptt <- as.factor(d$ptt)
+  d$ptt <- as.character(d$ptt)
   colnames(d)[colnames(d) == "Loc..date.yyyy.MM.dd.HH.mm.ss"] <- "date"
   colnames(d)[colnames(d) == "Loc..quality"] <- "LC"
   
@@ -60,15 +69,17 @@ all <- bind_rows(dfs)
 
 ## Look at tag locations individually and check for clearly erraneous locations that may
 ## need to be removed prior to import into Movebank ##
-t115 <- all[all$animal == "GmTag115",]
-#t010sub <- t010[c(2:217),]
-
+unique(all$animal)
+t <- all[all$animal == "GmTag026",]
+summary(t$Latitude)
+summary(t$Longitude)
+summary(all)
+#t_sub <- t[c(1:148),] # remove locations prior to deployment if necessary
 
 # remove locations or datasets if needed
 
-
 # write csv
-write.csv(all, paste0("For Douglas Filter/", spp, "/", "GmTag080-115_Kauai", "_Kalman_smooth.csv"),
+write.csv(all, paste0("For Douglas Filter/", spp, "/", "GmTag066-069_Lanai", "_Kalman_smooth.csv"),
           row.names = F, na = "")
 
 ## Function to summarize counts of LC classes (checks for uploading errors in Movebank) ##
@@ -142,6 +153,6 @@ summ <- function(x) {
 Sum <- summ(all)
 
 # save summary file 
-write.csv(Sum, "Summary files/GmTag080-231_RawLCSum.csv", row.names = F, na = "")
+write.csv(Sum, "Summary files/Location info for R/GmTag066-069_KalmanSmoothed_RawLCSum.csv", row.names = F, na = "")
 
 

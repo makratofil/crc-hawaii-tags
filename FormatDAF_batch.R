@@ -13,8 +13,8 @@ library(tidyverse)
 library(lubridate)
 
 # define species batch
-spp = "Gm"
-tag_range = "Tag070-231"
+spp = "Pe"
+tag_range = "Tag001-028"
 
 # determine filename pattern based on max rate (r) for species
 r20 = c("Sa", "Pc", "Gg", "Sb", "Tt", "Oo")
@@ -35,10 +35,12 @@ pattern = "DouglasFiltered"
 files <- list.files(path = paste0("Douglas Filtered/", spp, "/"), pattern = pattern,
                     full.names = T, recursive = F)
 
-files <- files[c(1:21, 23:35, 37)]
-
+files
+files <- files[c(4:27,29,31)]
+files
 # import deployment information for tags 
-deploy <- read.csv(paste0("Summary files/", spp, tag_range, "_DeployInfoForRv2.csv"), header = T)
+deploy <- read.csv(paste0("Summary files/Location info for R/",
+                          spp, tag_range, "_DeployInfoForR.csv"), header = T)
 deploy$date <- as.POSIXct(deploy$date, tz = "UTC")
 deploy$LC <- "DP"
 #deploy <- filter(deploy, animal != "TtTag034")
@@ -85,22 +87,25 @@ batch_final <- dplyr::select(df_batch, animal, ptt, date, longitud, latitude,
                       semi_minor)
 
 # add column for location type 
+batch_final$LocType <- "Kalman smoothed"
 batch_final$LocType <- NA
 
 # specify location type
-KS = c("GmTag070", "GmTag080", "GmTag081", "GmTag082", "GmTag083", "GmTag115", "GmTag152",
-       "GmTag153", "GmTag214", "GmTag231")
+KS = c("MdTag004","MdTag")
+
+LS = c("MdTag001", "MdTag002","MdTag003")
 
 batch_final <- batch_final %>%
   mutate(
-    LocType = ifelse(animal %in% KS, "Kalman smoothed", NA)
+    #LocType = ifelse(animal %in% KS, "Kalman smoothed", LocType),
+    LocType = ifelse(animal %in% LS, "Least sqaures", LocType)
   )
 
-batch_final$LocType[is.na(batch_final$LocType)] <- "Kalman filtered"
+batch_final$LocType[is.na(batch_final$LocType)] <- "Kalman smoothed"
 
 
 # write csv
-write.csv(batch_final, file = paste0("Douglas Filtered/", spp, tag_range,"_", pattern,"_2020JUNv1.csv"), row.names = F,
+write.csv(batch_final, file = paste0("Douglas Filtered/", spp, tag_range,"_", pattern,"_r15d3lc2_ArgosOnly_2021APRv1.csv"), row.names = F,
           na = "")
 
 ## Function to summarize counts of LC classes (checks for uploading errors in Movebank) ##
@@ -171,9 +176,10 @@ summ <- function(x) {
 Sum <- summ(batch_final)
 
 # write .csvs to check for LC errors in Movebank
-write.csv(Sum, paste0(spp, tag_range, "_DouglasFilter_LCSumm_2020MAYv1.csv"), row.names = F, na = "")
+write.csv(Sum, paste0(spp, tag_range, "_DouglasFilter_LCSumm_2021APRv1.csv"), row.names = F, na = "")
 
 # summarize number of least squares locations from older files
 old <- read.csv("SaTag001-009_GIS_LeastSquares.csv", header = T)
 colnames(old)[colnames(old) == "lc94"] <- "LC"
 oldSum <- summ(old)
+
