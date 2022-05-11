@@ -84,6 +84,9 @@ Script that includes the base functions for the fix_path() function from the dev
 ## foieGras.R
 Script that fits continuous-time state-space model (random walk or correlated random walk) to either a single deployment or several deployments at once, and predicts locations at a specified time interval. Script also includes code to fit a simple time-varying move persistence model. 
 
+## photoID_summary_plots.R
+Script that summarizes and creates 4 plots for photo-ID metrics (restricted by distinctiveness and photo-quality), using Pc as an example: (1) number of distinctive individuals by year and colored by social cluster; (2) number of identifications by year and colored by social cluster; (3) number of identifications by month (across all years) and colored by social cluster; and (4) number of identifications by island-area (across all years) and colored by social cluster. 
+
 ## TravelSpeedEst.R
 Script that calculates deltaT (time difference between successive locations), calculates the distance between successive points, and then calculates horizontal travel speed using the two computed metrics. **Can also get travel speed estimates from predicted output in crawl (return.type = 'flat') after fitting model. see *crawl_single.R* and *crawl_batch.R* scripts** 
 
